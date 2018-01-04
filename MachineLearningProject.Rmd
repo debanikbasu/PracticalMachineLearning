@@ -1,0 +1,116 @@
+---
+title: "Machine Learning Project"
+author: "Debanik Basu"
+date: "03/01/2018"
+output: html_document
+---
+      
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = FALSE)
+```
+
+## Introduction
+
+This document was created as part of the Practical Machine Learning course. The objective is to use data from accelerometers on fitness devices and predict the manner in which the participants did the exercise.
+
+## Background
+
+Using devices such as Jawbone Up, Nike FuelBand, and Fitbit is now possible to collect a large amount of data about personal activity relatively inexpensively. These type of devices are part of the quantified self movement - a group of enthusiasts who take measurements about themselves regularly to improve their health, to find patterns in their behavior, or because they are tech geeks. One thing that people regularly do is quantify how much of a particular activity they do, but they rarely quantify how well they do it.
+
+In this project, we will be to use data from accelerometers on the belt, forearm, arm, and dumbell of 6 participant They were asked to perform barbell lifts correctly and incorrectly in 5 different ways. The five ways are exactly according to the specification (Class A), throwing the elbows to the front (Class B), lifting the dumbbell only halfway (Class C), lowering the dumbbell only halfway (Class D) and throwing the hips to the front (Class E). Only Class A corresponds to correct performance. The goal of this project is to predict the manner in which they did the exercise, i.e., Class A to E.
+
+## Data Processing
+
+The training data for this project are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv
+
+The test data are available here: https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv
+
+The data for this project come from this source: http://groupware.les.inf.puc-rio.br/har
+
+We will first download these data sets and load the required libraries.
+
+```{r, echo = TRUE}
+library(caret)
+library(rpart)
+library(rpart.plot)
+library(RColorBrewer)
+library(rattle)
+library(randomForest)
+library(knitr)
+
+trainUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+testUrl <- "http://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+
+train <- read.csv(url(trainUrl), na.strings=c("NA","#DIV/0!",""))
+test <- read.csv(url(testUrl), na.strings=c("NA","#DIV/0!",""))
+```
+
+## Data Cleaning
+
+As part of the cleaning process, we will first remove columns that have any missing values.
+
+```{r, echo = TRUE}
+train <- train[, colSums(is.na(train)) == 0]
+test <- test[, colSums(is.na(test)) == 0]
+```
+
+We also remove the first 7 columns as these will not have any predictive power for the outcome variable.
+
+```{r, echo = TRUE}
+train <- train[, -c(1:7)]
+test <- test[, -c(1:7)]
+```
+
+Both data sets now have 53 variables. We now split the train data into a training set (for prediction) and a validation set (to compute out-of-sample errors).
+
+```{r, echo = TRUE}
+inTrain <- createDataPartition(train$classe, p=0.7, list=FALSE)
+training <- train[inTrain, ]
+validation <- train[-inTrain, ]
+```
+
+## Prediction with Decision Trees
+
+```{r, echo = TRUE}
+model1 <- rpart(classe ~ ., data=training, method="class")
+#fancyRpartPlot(model1)
+
+prediction1 <- predict(model1, validation, type = "class")
+cmtree <- confusionMatrix(prediction1, validation$classe)
+cmtree
+```
+
+From the confusion matrix, we find that this model has a 75% accuracy.
+We will now use the Random Forest model to see if we find a better fit.
+
+## Prediction with Random Forest
+
+```{r, echo = TRUE}
+model2 <- randomForest(classe ~ ., data=training)
+prediction2 <- predict(model2, validation, type = "class")
+cmrf <- confusionMatrix(prediction2, validation$classe)
+cmrf
+plot(model2)
+```
+
+## Predicting Results on Test set
+
+As seen above, the Random Forest model has the better accuracy in predicting the outcome. We will now use this to predict results on the test set.
+
+```{r, echo = TRUE}
+finalpredict <- predict(model2, test, type = "class")
+```
+
+## Writing output to file
+
+```{r, echo = TRUE}
+mywrite = function(x){
+    n = length(x)
+    for(i in 1:n){
+        filename = paste0("problem_id_",i,".txt")
+        write.table(x[i],file=filename,quote=FALSE,row.names=FALSE,col.names=FALSE)
+    }
+}
+
+mywrite(finalpredict)
+```
